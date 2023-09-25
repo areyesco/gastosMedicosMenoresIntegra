@@ -3,6 +3,8 @@ from datetime import datetime
 import os
 from app_config import AppConfig
 import re
+from xml_extractor import extract_xml_data
+import argparse
 
 # Load configuration
 app_config = AppConfig()
@@ -76,7 +78,7 @@ def update_document(page, invoices, amounts):
 def get_page_from_pdf(doc):
     return doc[app_config.doc_page]
 
-def generate_documents(insurance_pdf_format_file_path, invoices, amounts):
+def generate_documents(insurance_pdf_format_file_path, output_directory_path, invoices, amounts):
     """
     Generate documents by pairing invoices and amounts with widget xrefs.
 
@@ -114,7 +116,7 @@ def generate_documents(insurance_pdf_format_file_path, invoices, amounts):
         # Nombre del archivo de salida
         prefix_date_sring = datetime.now().strftime("%Y%m%d_%H%M%S")
         base_name = os.path.basename(insurance_pdf_format_file_path).split('.')[0]
-        output_pdf = f"./generatedFiles/{prefix_date_sring}_{base_name}_generated_{document_number}.pdf"
+        output_pdf = f"{output_directory_path}/{prefix_date_sring}_{base_name}_generated_{document_number}.pdf"
         
         # Guardar los cambios en un nuevo archivo PDF
         doc.save(output_pdf)
@@ -124,22 +126,47 @@ def generate_documents(insurance_pdf_format_file_path, invoices, amounts):
     return document_number
 
 def extract_data_from_invoices(invoices_dir_path):
-    invoices = ["17225", "17224", "E59EF017-0A0A-46F3-800E-7B945D614CB9", "17148"]
-    amounts = ["$1598.80", "$298.91", "$1183.50", "$ 869.79"]
-    invoices = ["17225", "17224", "E59EF017-0A0A-46F3-800E-7B945D614CB9", "17148","17225", "17224", "E59EF017-0A0A-46F3-800E-7B945D614CB9", "17148","17225", "17224", "E59EF017-0A0A-46F3-800E-7B945D614CB9", "17148", "E59EF017-0A0A-46F3-800E-7B945D614CB9", "17148"]
-    amounts = ["$1598.80", "$298.91", "$1183.50", "$ 869.79","$1598.80", "$298.91", "$1183.50", "$ 869.79","$1598.80", "$298.91", "$1183.50", "$ 869.79", "$1183.50", "$ 869.79"]
+    # Call the function to extract data from the XML files
+    invoices = []
+    amounts = []
+    extracted_data = extract_xml_data(invoices_dir_path, app_config.xml_extractor_print_summary) 
+    for invoice_data in extracted_data:
+        invoices.append(invoice_data['invoice_number'])
+        amounts.append(invoice_data['amount'])
     return invoices, amounts
 
 def main():
-    # Extract data from invoices
-    invoices_dir_path = "./invoices"
-    invoices, amounts = extract_data_from_invoices(invoices_dir_path)
+    parser = argparse.ArgumentParser(description='Generate Insurance refund format based on XML invoices in a directory.')
+    parser.add_argument('-d', '--directory', required=True, help='The directory containing XML invoices files.')
+    parser.add_argument('-i', '--insurance_file', required=False, help='Insurance file path.', default=app_config.insurance_pdf_format_file_path)
+    parser.add_argument('-o', '--output_directory', required=False, help='Output directory path.')
     
-    # Nombre del archivo de entrada
-    insurance_pdf_format_file_path = app_config.insurance_pdf_format_file_path
+    args = parser.parse_args()
+
+    # Verify if the provided directory exists
+    if not os.path.exists(args.directory):
+        print(f"The provided directory {args.directory} does not exist.")
+        return
+    
+    # Verify if the provided directory exists
+    if not os.path.exists(args.insurance_file):
+        print(f"The Insurance file path {args.insurance_file} does not exist.")
+        return
+    
+    # Verify if the provided directory exists
+    if args.output_directory and not os.path.exists(args.output_directory):
+        print(f"The output directory {args.output_directory} does not exist.")
+        return
+
+    # By default the output_directory is the same Invoice files path
+    if args.directory and args.output_directory == None:
+        args.output_directory = args.directory
+
+    # Extract data from invoices
+    invoices, amounts = extract_data_from_invoices(args.directory)
     
     # Llamar a la función para modificar el PDF
-    generate_documents(insurance_pdf_format_file_path, invoices, amounts)
+    generate_documents(args.insurance_file, args.output_directory, invoices, amounts)
     #modificar_pdf(input_pdf, facturas, importes)
 
 if __name__ == "__main__":

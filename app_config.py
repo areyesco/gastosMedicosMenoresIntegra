@@ -5,9 +5,12 @@ class AppConfig:
         self.total_amount_xref_widget = 81
         self.doc_page = 0
         self.max_amount = 20000
-        self.bDebug = True
+        self.bDebug = False
+        self.output_directory_path = "./generatedFiles"
         self.insurance_pdf_format_file_path_original = "SolDeReembolsoINTEGRASaludEditable.pdf"
         self.insurance_pdf_format_file_path = "/home/areyes/datos/personal/gastosMedicos/menores/formatos/integra/ARG_SolDeReembolsoINTEGRASalud.pdf"
+        self.xml_extractor_print_summary = True
+        self.invoice_extensions = '.xml'
 
 
 """
