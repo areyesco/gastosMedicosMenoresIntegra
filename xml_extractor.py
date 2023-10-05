@@ -67,11 +67,12 @@ def extract_xml_data(directory, print_result=False):
                 
     # Print the summary in a markdown table
     if print_result:
+        print("Extracted data from invoices files")
         print("| Filename | Status | Invoice Number | Amount | Error |")
         print("|----------|--------|----------------|--------|-------|")
         for entry in summary:
             print(f"| {entry['Filename']} | {entry['Status']} | {entry['Invoice Number']} | {entry['Amount']} | {entry['Error']} |")
-    
+        print("")
     # Return the extracted data
     return extracted_data
 

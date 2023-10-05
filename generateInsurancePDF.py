@@ -5,6 +5,7 @@ from app_config import AppConfig
 import re
 from xml_extractor import extract_xml_data
 import argparse
+import zipfile
 
 # Load configuration
 app_config = AppConfig()
@@ -78,6 +79,15 @@ def update_document(page, invoices, amounts):
 def get_page_from_pdf(doc):
     return doc[app_config.doc_page]
 
+def get_file_name_with_timestamp(output_directory_path, base_file_name, sufix, extension, bool_add_prefix_timestamp, prefix_timestamp_format=app_config.prefix_timestamp_format_default):
+    prefix_date_sring = ""
+    if bool_add_prefix_timestamp:
+        prefix_date_sring = datetime.now().strftime(prefix_timestamp_format)
+    if sufix:
+        sufix = "_" + sufix
+    output_file_path = os.path.join(output_directory_path, f"{prefix_date_sring}_{base_file_name}{sufix}.{extension}")
+    return output_file_path
+
 def generate_documents(insurance_pdf_format_file_path, output_directory_path, invoices, amounts):
     """
     Generate documents by pairing invoices and amounts with widget xrefs.
@@ -91,6 +101,7 @@ def generate_documents(insurance_pdf_format_file_path, output_directory_path, in
     Returns:
         list: List of documents (lists of modifications) for each set of invoices and amounts.
     """
+    insurance_generated_files = []
     document_number = 1
     while invoices and amounts:
         # Abrir el archivo PDF
@@ -114,16 +125,15 @@ def generate_documents(insurance_pdf_format_file_path, output_directory_path, in
         invoice_modifications = update_document(page, invoices_subset, amounts_subset)
 
         # Nombre del archivo de salida
-        prefix_date_sring = datetime.now().strftime("%Y%m%d_%H%M%S")
-        base_name = os.path.basename(insurance_pdf_format_file_path).split('.')[0]
-        output_pdf = f"{output_directory_path}/{prefix_date_sring}_{base_name}_generated_{document_number}.pdf"
+        output_file_path = get_file_name_with_timestamp(output_directory_path, os.path.basename(insurance_pdf_format_file_path).split('.')[0], f"generated_{document_number}", "pdf", True)
         
         # Guardar los cambios en un nuevo archivo PDF
-        doc.save(output_pdf)
+        doc.save(output_file_path)
         document_number += 1
+        insurance_generated_files.append(output_file_path)
         doc.close()
     
-    return document_number
+    return insurance_generated_files
 
 def extract_data_from_invoices(invoices_dir_path):
     # Call the function to extract data from the XML files
@@ -134,6 +144,54 @@ def extract_data_from_invoices(invoices_dir_path):
         invoices.append(invoice_data['invoice_number'])
         amounts.append(invoice_data['amount'])
     return invoices, amounts
+
+def identify_files_to_zip(invoices_dir):
+    # invoices, insurance generated file
+    if app_config.bDebug:
+        print("identify_files_to_zip -> invoices dir:", invoices_dir)
+
+    file_list = []
+    for file_name in os.listdir(invoices_dir):
+        base_name, extension = os.path.splitext(file_name)
+        if extension:
+            extension = extension[1:]
+        if extension in app_config.file_extensions_to_zip:
+            file_list.append(os.path.join(invoices_dir, file_name))
+    
+    if app_config.bDebug:
+        print("identify_files_to_zip -> file list in dir:", file_list)
+    
+    return file_list
+
+def identify_files_to_zip_bkp(invoices_dir):
+    # invoices, insurance generated file
+    file_list = []
+
+    # Recorrer el directorio y sus subdirectorios
+    for foldername, subfolders, filenames in os.walk(invoices_dir):
+        for filename in filenames:
+            file_name, file_extension = os.path.splitext(filename)
+            if file_extension in app_config.file_extensions_to_zip:
+                file_list.append(os.path.join(foldername, filename))
+
+    return file_list
+
+def zip_invoices_insurance_file(invoices_dir, insurance_generated_files, zip_file_path):
+
+    files_to_zip = identify_files_to_zip(invoices_dir)
+
+    for insurance_generated_file in insurance_generated_files:
+        if insurance_generated_file not in files_to_zip:
+            files_to_zip.append(insurance_generated_file)
+
+    if app_config.bDebug:
+        print("zip_invoices_insurance_file -> files to zip:", files_to_zip)
+    
+    # Crear el archivo ZIP y agregar los archivos
+    with zipfile.ZipFile(zip_file_path, 'w') as zipf:
+        for file in files_to_zip:
+            zipf.write(file, os.path.basename(file))
+    return True
 
 def main():
     parser = argparse.ArgumentParser(description='Generate Insurance refund format based on XML invoices in a directory.')
@@ -161,13 +219,24 @@ def main():
     # By default the output_directory is the same Invoice files path
     if args.directory and args.output_directory == None:
         args.output_directory = args.directory
-
+    print("Starts at: ", datetime.now())
+    print("main -> executing arguments: \n\tInvoices directory: ", args.directory, "\n\tInsurance file: ", args.insurance_file, "\n\tOutput directory: ", args.output_directory, "\n")
+    
     # Extract data from invoices
     invoices, amounts = extract_data_from_invoices(args.directory)
     
     # Llamar a la función para modificar el PDF
-    generate_documents(args.insurance_file, args.output_directory, invoices, amounts)
+    insurance_generated_files = generate_documents(args.insurance_file, args.output_directory, invoices, amounts)
     #modificar_pdf(input_pdf, facturas, importes)
+    # Generate zip file and sent mail
+    if len(insurance_generated_files) > 0:
+        zip_file_path = get_file_name_with_timestamp(args.output_directory, app_config.zip_base_name, None, app_config.zip_extension, True, app_config.zip_prefix_timestamp_format)
+        is_zip_generated = zip_invoices_insurance_file(args.directory, insurance_generated_files, zip_file_path)
+        if is_zip_generated:
+            print("Zip file name created:", zip_file_path, "\n")
+            print("sending mail\n")
+    
+    print("Ends at: ", datetime.now())
 
 if __name__ == "__main__":
     main()

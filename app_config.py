@@ -11,6 +11,11 @@ class AppConfig:
         self.insurance_pdf_format_file_path = "/home/areyes/datos/personal/gastosMedicos/menores/formatos/integra/ARG_SolDeReembolsoINTEGRASalud.pdf"
         self.xml_extractor_print_summary = True
         self.invoice_extensions = '.xml'
+        self.file_extensions_to_zip = ['xml', 'pdf']
+        self.zip_base_name = "ArmandoReyesGtz_SolReembolsoGMMenores"
+        self.zip_prefix_timestamp_format = "%Y%m%d"
+        self.zip_extension = "zip"
+        self.prefix_timestamp_format_default = "%Y%m%d_%H%M%S"
 
 
 """
