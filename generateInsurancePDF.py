@@ -153,6 +153,7 @@ def identify_files_to_zip(invoices_dir):
     file_list = []
     for file_name in os.listdir(invoices_dir):
         base_name, extension = os.path.splitext(file_name)
+        extension = extension.lower()
         if extension:
             extension = extension[1:]
         if extension in app_config.file_extensions_to_zip:

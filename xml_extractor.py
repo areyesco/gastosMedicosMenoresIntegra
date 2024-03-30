@@ -27,7 +27,7 @@ def extract_xml_data(directory, print_result=False):
     # Iterate over all files in the specified directory
     for filename in os.listdir(directory):
         # Check if the file is an XML file
-        if filename.endswith('.xml'):
+        if filename.lower().endswith('.xml'):
             # Construct the full file path
             file_path = os.path.join(directory, filename)
             
