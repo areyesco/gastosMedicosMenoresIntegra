@@ -35,43 +35,40 @@ def update_widget( page, wid_xref, value ):
         if app_config.bDebug:
             print(f"Widget updated, name: {wid_aux.field_name}, xref: {wid_aux.xref}, value: {wid_aux.field_value}")
 
-def update_document(page, invoices, amounts):
+def update_document(page, invoices, amounts, adjustment=0):
     """
     Update document with invoices and amounts
 
     Args:
         invoices (list): List of invoice values.
         amounts (list): List of amount values.
+        adjustment (float): Amount to add/subtract from the total (can be negative).
 
     Returns:
-        
+
     """
     total_invoices_amount = 0
     for invoice, amount, invoice_xref, amount_xref in zip(invoices, amounts, app_config.invoice_widgets, app_config.amount_widgets):
-        # Get and remove the first invoice widget.
-        #invoice_xref = invoice_widgets.pop(0)
-
-        # Get and remove the first amount widget.
-        #amount_xref = amount_widgets.pop(0)
-
         # Update invoice widget
-        #mod_invoice = {"xref": invoice_xref, "value": invoice}
         update_widget(page, invoice_xref, invoice)
 
         # Update amount widget
-        #mod_amount = {"xref": amount_xref, "value": amount}
         amount_number = convert_string_to_number(amount)
         if amount_number is None:
             raise ValueError(f"The amount must be a number: invoice: {invoice}, amount: {amount}, amount number: {amount_number}")
-        
+
         if amount_number >= app_config.max_amount:
             raise ValueError(f"The amount is bigger than the max_amount: invoice: {invoice}, amount: {amount}, amount number: {amount_number}")
         update_widget(page, amount_xref, "{:,.2f}".format(amount_number))
 
         # Calcular la suma de los importes
         total_invoices_amount += amount_number
-    
-    update_widget(page, app_config.total_amount_xref_widget, "{:,.2f}".format(total_invoices_amount))
+
+    total_with_adjustment = total_invoices_amount + adjustment
+    update_widget(page, app_config.total_amount_xref_widget, "{:,.2f}".format(total_with_adjustment))
+
+    if app_config.bDebug and adjustment != 0:
+        print(f"Total invoices: {total_invoices_amount:.2f}, adjustment: {adjustment:.2f}, final total: {total_with_adjustment:.2f}")
     
     if app_config.bDebug:
         print("Document page updated")
@@ -88,7 +85,7 @@ def get_file_name_with_timestamp(output_directory_path, base_file_name, sufix, e
     output_file_path = os.path.join(output_directory_path, f"{prefix_date_sring}_{base_file_name}{sufix}.{extension}")
     return output_file_path
 
-def generate_documents(insurance_pdf_format_file_path, output_directory_path, invoices, amounts):
+def generate_documents(insurance_pdf_format_file_path, output_directory_path, invoices, amounts, adjustment=0):
     """
     Generate documents by pairing invoices and amounts with widget xrefs.
 
@@ -122,7 +119,7 @@ def generate_documents(insurance_pdf_format_file_path, output_directory_path, in
         amounts = amounts[num_widgets:]
 
         # Generate modifications for the subset of invoices and amounts
-        invoice_modifications = update_document(page, invoices_subset, amounts_subset)
+        invoice_modifications = update_document(page, invoices_subset, amounts_subset, adjustment)
 
         # Nombre del archivo de salida
         output_file_path = get_file_name_with_timestamp(output_directory_path, os.path.basename(insurance_pdf_format_file_path).split('.')[0], f"generated_{document_number}", "pdf", True)
@@ -199,6 +196,7 @@ def main():
     parser.add_argument('-d', '--directory', required=True, help='The directory containing XML invoices files.')
     parser.add_argument('-i', '--insurance_file', required=False, help='Insurance file path.', default=app_config.insurance_pdf_format_file_path)
     parser.add_argument('-o', '--output_directory', required=False, help='Output directory path.')
+    parser.add_argument('-a', '--adjustment', required=False, type=float, default=0.0, help='Amount to add or subtract from the total (e.g. 150.00 or -50.00).')
     
     args = parser.parse_args()
 
@@ -221,13 +219,13 @@ def main():
     if args.directory and args.output_directory == None:
         args.output_directory = args.directory
     print("Starts at: ", datetime.now())
-    print("main -> executing arguments: \n\tInvoices directory: ", args.directory, "\n\tInsurance file: ", args.insurance_file, "\n\tOutput directory: ", args.output_directory, "\n")
+    print("main -> executing arguments: \n\tInvoices directory: ", args.directory, "\n\tInsurance file: ", args.insurance_file, "\n\tOutput directory: ", args.output_directory, "\n\tAdjustment: ", args.adjustment, "\n")
     
     # Extract data from invoices
     invoices, amounts = extract_data_from_invoices(args.directory)
     
     # Llamar a la función para modificar el PDF
-    insurance_generated_files = generate_documents(args.insurance_file, args.output_directory, invoices, amounts)
+    insurance_generated_files = generate_documents(args.insurance_file, args.output_directory, invoices, amounts, args.adjustment)
     #modificar_pdf(input_pdf, facturas, importes)
     # Generate zip file and sent mail
     if len(insurance_generated_files) > 0:
